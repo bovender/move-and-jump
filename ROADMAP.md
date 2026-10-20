@@ -24,24 +24,30 @@ path segment, right after a `/`, and in unbroken runs.
 - The scoring is the actual work, not the subsequence check itself —
   a naive "does the subsequence exist" match produces noisy, hard to
   predict ordering for short strings like folder names.
-- **Revisit `lib/highlight.js` when this lands.** Match highlighting
-  already shipped (1.1.0), built for today's contiguous-substring
-  matching (`findMatchRange` returns one `{start, end}` range). Fuzzy
-  subsequence matches are scattered, non-contiguous characters, so
-  highlighting will need to become "a set of matched indices" rather
-  than a single range — a real (if contained) follow-up change, not
-  just an extension of the current function.
-- Also revisit `lib/weights.js`'s `sortByWeight()`/`sortByQueryWeight()`:
-  they currently re-sort `filterFolders()`'s output by usage weight
-  only, discarding match-quality order entirely. Fuzzy search's
-  per-result relevance *score* is more informative than today's coarse
-  tiers — worth reconsidering whether weight should factor into a
-  combined score instead of overriding relevance outright, though the
-  current "weight wins, full stop" behavior was a deliberate choice
-  (see ARCHITECTURE.md) that should only change on its own merits, not
-  as a side effect of unrelated fuzzy-search work.
+- **Highlighting is mostly ready.** Since multi-word queries (1.3.0),
+  `findMatchRanges` in `lib/highlight.js` already returns several
+  ranges per label. Fuzzy matches would just need to produce
+  one-character ranges, from the matched indices, which the existing
+  merge step joins into runs.
+- **How it ranks against usage weights (discussed 2026-10-20, not yet
+  decided).** Subsequence matches are much noisier than substring
+  matches, so today's "weight wins, full stop" ordering would let a
+  heavily used folder that matches on scattered letters beat an exact
+  substring hit. Two ways to counter that:
+  - *Combined score* (match quality + k × weight): continuous, needs
+    tuning, and one more use can silently flip a folder past a
+    clearly better text match. Rejected as unpredictable.
+  - *Bands* (recommended, and already how multi-word queries rank
+    name matches above path/account matches; see `matchBand` in
+    `lib/match.js`): substring/all-words matches form the top
+    band, ranked exactly as today; fuzzy-only matches go in a band
+    below, ranked by fuzzy score, then weight. Text quality picks the
+    band and habit orders within it. It's easy to reason about, and
+    existing habits keep working unchanged.
+  The open question is whether fuzzy is still worth it now that
+  multi-word queries (1.3.0) cover the motivating case (`f lei`).
 
 Frequency-weighted folder ranking and search-term highlighting (both
-previously listed here) shipped in 1.1.0, and per-typed-query-prefix
-weighting followed in 1.2.0 — see [CHANGELOG.md](CHANGELOG.md) and
+previously listed here) shipped in 1.1.0, per-typed-query-prefix
+weighting followed in 1.2.0, and multi-word queries in 1.3.0 — see [CHANGELOG.md](CHANGELOG.md) and
 `lib/weights.js`/`lib/highlight.js` in [ARCHITECTURE.md](ARCHITECTURE.md).

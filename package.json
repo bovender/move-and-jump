@@ -1,6 +1,6 @@
 {
   "name": "move-and-jump",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "description": "Thunderbird add-on: type-ahead search to move emails to a folder, or jump to one.",

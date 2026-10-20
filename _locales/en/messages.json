@@ -64,7 +64,7 @@
     "description": "Options page section heading"
   },
   "optionsRankingInfo": {
-    "message": "Results are ranked using your past choices: folders you've picked after typing similar text come first, then your most-used folders overall, then alphabetically.",
+    "message": "Results are ranked using your past choices: folders you've picked after typing similar text come first, then your most-used folders overall (recent use counts more than older use), then alphabetically. You can type several words, in any order, to narrow the list; folders whose own name contains all of them come first. To reset a folder's ranking, highlight it in the results and click the ⤓ icon or press Shift+Delete.",
     "description": "Options page paragraph explaining search-result ranking"
   },
   "buttonMove": {
@@ -78,6 +78,10 @@
   "buttonCancel": {
     "message": "Cancel",
     "description": "Search window button: close without doing anything"
+  },
+  "buttonDemote": {
+    "message": "Reset ranking: forget how often this folder was used (Shift+Delete)",
+    "description": "Search window: tooltip of the per-result button that resets a folder's usage-based ranking"
   },
   "tooltipLastFolder": {
     "message": "Move and Jump — Last: $FOLDER$",

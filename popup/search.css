@@ -88,12 +88,56 @@ body.measuring ul {
 }
 
 li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 8px;
   border-radius: 4px;
+  cursor: pointer;
+}
+
+li .label {
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
+}
+
+/* Per-row "reset ranking" button (see createDemoteButton() in
+   search.js). Only shown on the highlighted or hovered row, to keep
+   the list uncluttered; kept no taller than a line of text so rows
+   with and without it are the same height. */
+li button.demote {
+  flex: none;
+  display: flex;
+  padding: 1px;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  opacity: 0.6;
+  visibility: hidden;
+}
+
+li.active button.demote,
+li:hover button.demote {
+  visibility: visible;
+}
+
+li button.demote:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+li button.demote svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 li.active {

@@ -48,7 +48,7 @@
     "message": "Tastenkombinationen"
   },
   "optionsRankingInfo": {
-    "message": "Die Ergebnisse werden anhand Ihrer bisherigen Auswahl sortiert: Ordner, die Sie nach Eingabe eines ähnlichen Textes bereits ausgewählt haben, erscheinen zuerst, danach Ihre insgesamt meistgenutzten Ordner, danach alphabetisch."
+    "message": "Die Ergebnisse werden anhand Ihrer bisherigen Auswahl sortiert: Ordner, die Sie nach Eingabe eines ähnlichen Textes bereits ausgewählt haben, erscheinen zuerst, danach Ihre insgesamt meistgenutzten Ordner (kürzliche Nutzung zählt mehr als länger zurückliegende), danach alphabetisch. Sie können mehrere Wörter in beliebiger Reihenfolge eingeben, um die Liste einzugrenzen; Ordner, deren eigener Name alle davon enthält, erscheinen zuerst. Um das Ranking eines Ordners zurückzusetzen, markieren Sie ihn in den Ergebnissen und klicken Sie auf das Symbol ⤓ oder drücken Sie Umschalt+Entf."
   },
   "buttonMove": {
     "message": "Verschieben"
@@ -58,6 +58,9 @@
   },
   "buttonCancel": {
     "message": "Abbrechen"
+  },
+  "buttonDemote": {
+    "message": "Ranking zurücksetzen: vergessen, wie oft dieser Ordner verwendet wurde (Umschalt+Entf)"
   },
   "tooltipLastFolder": {
     "message": "Move and Jump — Zuletzt: $FOLDER$",

@@ -48,7 +48,7 @@
     "message": "Raccourcis clavier"
   },
   "optionsRankingInfo": {
-    "message": "Les résultats sont classés selon vos choix précédents : les dossiers déjà sélectionnés après avoir tapé un texte similaire apparaissent en premier, puis vos dossiers les plus utilisés en général, puis par ordre alphabétique."
+    "message": "Les résultats sont classés selon vos choix précédents : les dossiers déjà sélectionnés après avoir tapé un texte similaire apparaissent en premier, puis vos dossiers les plus utilisés en général (une utilisation récente compte davantage qu'une plus ancienne), puis par ordre alphabétique. Vous pouvez saisir plusieurs mots, dans n'importe quel ordre, pour affiner la liste ; les dossiers dont le nom contient tous ces mots apparaissent en premier. Pour réinitialiser le classement d'un dossier, sélectionnez-le dans les résultats et cliquez sur l'icône ⤓ ou appuyez sur Maj+Suppr."
   },
   "buttonMove": {
     "message": "Déplacer"
@@ -58,6 +58,9 @@
   },
   "buttonCancel": {
     "message": "Annuler"
+  },
+  "buttonDemote": {
+    "message": "Réinitialiser le classement : oublier la fréquence d'utilisation de ce dossier (Maj+Suppr)"
   },
   "tooltipLastFolder": {
     "message": "Move and Jump — Dernier dossier : $FOLDER$",

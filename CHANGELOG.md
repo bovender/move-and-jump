@@ -4,6 +4,31 @@ All notable changes to this project are documented here. Versions
 follow [semantic versioning](https://semver.org/) — see
 [ARCHITECTURE.md](ARCHITECTURE.md#versioning) for the project's policy.
 
+## [1.3.0] - 2026-10-20
+
+### Added
+
+- Search queries can have several words, separated by spaces, in any
+  order: a folder matches only if every word matches it, so each word
+  narrows the list (e.g. `f lei` finds "2026-10 DGfN Leipzig" but not
+  "2026-12 DTG Leipzig"). Words can also match a parent folder or the
+  account name; folders whose own name contains all the words are
+  listed first. Every word is highlighted in the results.
+
+- A folder's search ranking can now be reset: highlight it in the
+  search results and click the ⤓ icon at the end of the row, or press
+  Shift+Delete. This forgets how often the folder has been used, so a
+  once-busy folder (e.g. a past event's) stops outranking a newer one
+  that matches the same search text.
+
+### Changed
+
+- Usage history now fades over time: a use counts half as much
+  after 30 days, a quarter after 60, and so on, so folders you no
+  longer use gradually stop outranking the ones you use now. Existing
+  history is kept and treated as dating from when it was first
+  recorded (1.1.0, August 2026).
+
 ## [1.2.0] - 2026-08-06
 
 ### Added

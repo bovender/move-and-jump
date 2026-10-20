@@ -1,9 +1,9 @@
-import { filterFolders } from "../lib/match.js";
+import { filterFolders, matchBand } from "../lib/match.js";
 import { filterByAccount } from "../lib/folders.js";
 import { getOptions } from "../lib/options.js";
 import { decodeImapUtf7 } from "../lib/imapUtf7.js";
-import { sortByQueryWeight } from "../lib/weights.js";
-import { findMatchRange } from "../lib/highlight.js";
+import { sortByQueryWeight, forgetFolderWeights } from "../lib/weights.js";
+import { findMatchRanges } from "../lib/highlight.js";
 
 const heading = document.getElementById("heading");
 const input = document.getElementById("query");
@@ -51,6 +51,7 @@ error.textContent = messenger.i18n.getMessage("popupError");
 moveButton.textContent = messenger.i18n.getMessage("buttonMove");
 jumpButton.textContent = messenger.i18n.getMessage("buttonJump");
 cancelButton.textContent = messenger.i18n.getMessage("buttonCancel");
+const demoteLabel = messenger.i18n.getMessage("buttonDemote");
 moveButton.classList.toggle("primary", mode === "move");
 jumpButton.classList.toggle("primary", mode === "jump");
 input.focus();
@@ -145,35 +146,80 @@ function folderLabel(folder) {
 }
 
 /**
- * Fill `item` with `label`, wrapping the portion matching `query` (if
- * any) in a <mark> element. Built from real DOM nodes rather than
- * innerHTML, consistent with the rest of the popup.
+ * Fill `element` with `folder`'s label, wrapping the portions matching
+ * the words of `query` (if any) in <mark> elements. Built from real DOM
+ * nodes rather than innerHTML, consistent with the rest of the popup.
  */
-function appendHighlighted(item, label, query) {
-  const range = query
-    ? findMatchRange(label, query, { caseSensitive: options.caseSensitiveSearch })
-    : null;
-  if (!range) {
-    item.textContent = label;
-    return;
+function appendHighlighted(element, folder, query) {
+  const label = folderLabel(folder);
+  // The label ends with the folder's own name; prefer highlighting
+  // words there over an earlier occurrence in a parent folder's name.
+  const preferFrom = label.endsWith(folder.name) ? label.length - folder.name.length : 0;
+  const ranges = query
+    ? findMatchRanges(label, query, { caseSensitive: options.caseSensitiveSearch, preferFrom })
+    : [];
+  let position = 0;
+  for (const { start, end } of ranges) {
+    const mark = document.createElement("mark");
+    mark.textContent = label.slice(start, end);
+    element.append(document.createTextNode(label.slice(position, start)), mark);
+    position = end;
   }
-  const mark = document.createElement("mark");
-  mark.textContent = label.slice(range.start, range.end);
-  item.append(
-    document.createTextNode(label.slice(0, range.start)),
-    mark,
-    document.createTextNode(label.slice(range.end)),
-  );
+  element.append(document.createTextNode(label.slice(position)));
+}
+
+/**
+ * Whether a typed-search result has any usage history that demoting
+ * could reset. Every selection bumps the global weight, so a zero
+ * global weight means there's nothing per-query either. Not offered
+ * in the empty-query recent-folders view, whose order is recency and
+ * wouldn't change.
+ */
+function canDemote(folder, query) {
+  return Boolean(folder && query.trim() && (folderWeights[folder.id] ?? 0) > 0);
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** A small "arrow down to a line" icon, drawn in currentColor. */
+function createDemoteIcon() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", "M12 3v13M6 10l6 6 6-6M5 21h14");
+  svg.appendChild(path);
+  return svg;
+}
+
+function createDemoteButton(folder) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "demote";
+  button.tabIndex = -1;
+  button.title = demoteLabel;
+  button.setAttribute("aria-label", demoteLabel);
+  button.appendChild(createDemoteIcon());
+  // mousedown, not click, to get in ahead of the row's own mousedown
+  // (which would select the folder) and to keep focus in the input.
+  button.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    demote(folder);
+  });
+  return button;
 }
 
 function render(query) {
   const trimmed = query.trim();
+  const matchOptions = { caseSensitive: options.caseSensitiveSearch };
   visible = trimmed
     ? sortByQueryWeight(
-        filterFolders(allFolders, trimmed, { caseSensitive: options.caseSensitiveSearch }),
+        filterFolders(allFolders, trimmed, matchOptions),
         queryWeights,
         folderWeights,
         trimmed,
+        (folder) => matchBand(folder, trimmed, matchOptions),
       )
     : recentFolders;
   activeIndex = 0;
@@ -181,7 +227,11 @@ function render(query) {
   list.innerHTML = "";
   for (const folder of visible) {
     const item = document.createElement("li");
-    appendHighlighted(item, folderLabel(folder), trimmed);
+    const label = document.createElement("span");
+    label.className = "label";
+    appendHighlighted(label, folder, trimmed);
+    item.appendChild(label);
+    if (canDemote(folder, trimmed)) item.appendChild(createDemoteButton(folder));
     item.addEventListener("mousedown", (event) => {
       event.preventDefault();
       select(mode, folder);
@@ -243,6 +293,28 @@ async function select(actionMode, folder) {
   window.close();
 }
 
+/**
+ * Reset `folder`'s ranking (see handleDemote in background.js), then
+ * mirror the same change in this window's in-memory copy of the
+ * weights and re-render, so the new order shows up immediately.
+ */
+async function demote(folder) {
+  error.hidden = true;
+  try {
+    const response = await messenger.runtime.sendMessage({
+      type: "demote",
+      folderId: folder.id,
+    });
+    if (response?.ok === false) throw new Error(response.error);
+  } catch (sendError) {
+    console.error("Move and Jump: demote failed", sendError);
+    error.hidden = false;
+    return;
+  }
+  ({ folderWeights, queryWeights } = forgetFolderWeights(folderWeights, queryWeights, folder.id));
+  render(input.value);
+}
+
 input.addEventListener("input", () => render(input.value));
 
 input.addEventListener("keydown", (event) => {
@@ -258,6 +330,15 @@ input.addEventListener("keydown", (event) => {
     case "Enter":
       event.preventDefault();
       select(mode, visible[activeIndex]);
+      break;
+    case "Delete":
+      // Shift+Delete, as in Firefox's address bar for removing a
+      // suggestion. Anything else (including Shift+Delete on a row
+      // with nothing to reset) keeps the input's default behavior.
+      if (event.shiftKey && canDemote(visible[activeIndex], input.value)) {
+        event.preventDefault();
+        demote(visible[activeIndex]);
+      }
       break;
     case "Escape":
       event.preventDefault();

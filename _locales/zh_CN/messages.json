@@ -48,7 +48,7 @@
     "message": "键盘快捷键"
   },
   "optionsRankingInfo": {
-    "message": "搜索结果会根据您以往的选择排序：曾在输入类似文字后被选中的文件夹会排在最前面，其次是您总体使用最多的文件夹，最后按字母顺序排列。"
+    "message": "搜索结果会根据您以往的选择排序：曾在输入类似文字后被选中的文件夹会排在最前面，其次是您总体使用最多的文件夹（近期使用比早期使用权重更高），最后按字母顺序排列。您可以输入多个词（顺序不限）来缩小结果范围；名称本身包含所有这些词的文件夹会排在最前面。如需重置某个文件夹的排序，请在结果中选中它，然后点击 ⤓ 图标或按 Shift+Delete。"
   },
   "buttonMove": {
     "message": "移动"
@@ -58,6 +58,9 @@
   },
   "buttonCancel": {
     "message": "取消"
+  },
+  "buttonDemote": {
+    "message": "重置排序：清除此文件夹的使用次数记录（Shift+Delete）"
   },
   "tooltipLastFolder": {
     "message": "Move and Jump — 最近：$FOLDER$",

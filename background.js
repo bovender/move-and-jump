@@ -1,7 +1,12 @@
 import { pushRecent } from "./lib/recent.js";
 import { DEFAULT_OPTIONS } from "./lib/options.js";
 import { decodeImapUtf7 } from "./lib/imapUtf7.js";
-import { incrementWeight, incrementQueryWeight } from "./lib/weights.js";
+import {
+  incrementWeight,
+  incrementQueryWeight,
+  forgetFolderWeights,
+  usageIncrement,
+} from "./lib/weights.js";
 
 /**
  * In-memory mirror of storage.local's lastUsedFolderId, kept in sync so
@@ -74,10 +79,11 @@ async function recordUsage(folderId, query = "") {
       messenger.storage.local.get("queryWeights"),
       getFolderById(folderId),
     ]);
+  const amount = usageIncrement(Date.now());
   await messenger.storage.local.set({
     recentFolders: pushRecent(recentFolders, folderId),
-    folderWeights: incrementWeight(folderWeights, folderId),
-    queryWeights: incrementQueryWeight(queryWeights, query, folderId),
+    folderWeights: incrementWeight(folderWeights, folderId, amount),
+    queryWeights: incrementQueryWeight(queryWeights, query, folderId, amount),
     lastUsedFolderId: folderId,
   });
   if (folder) {
@@ -95,6 +101,25 @@ async function handleSelection(mode, folderId, tabId, query) {
     return { ok: true };
   } catch (error) {
     console.error("Move and Jump: handleSelection failed", error);
+    return { ok: false, error: String(error) };
+  }
+}
+
+/**
+ * Reset a folder's ranking by forgetting all of its recorded usage
+ * (see forgetFolderWeights). The recent-folders list and the last-used
+ * folder are left alone — those are about recency, not ranking.
+ */
+async function handleDemote(folderId) {
+  try {
+    const [{ folderWeights = {} }, { queryWeights = {} }] = await Promise.all([
+      messenger.storage.local.get("folderWeights"),
+      messenger.storage.local.get("queryWeights"),
+    ]);
+    await messenger.storage.local.set(forgetFolderWeights(folderWeights, queryWeights, folderId));
+    return { ok: true };
+  } catch (error) {
+    console.error("Move and Jump: handleDemote failed", error);
     return { ok: false, error: String(error) };
   }
 }
@@ -216,6 +241,9 @@ messenger.action.onClicked.addListener((tab) => openSearchWindow("move", tab.id)
 messenger.runtime.onMessage.addListener((message) => {
   if (message?.type === "select") {
     return handleSelection(message.mode, message.folderId, message.tabId, message.query);
+  }
+  if (message?.type === "demote") {
+    return handleDemote(message.folderId);
   }
   if (message?.type === "resize") {
     return resizeSearchWindow(message.height);

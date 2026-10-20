@@ -283,10 +283,10 @@ that mutates `storage.local` and the toolbar tooltip.
 ```jsonc
 {
   "recentFolders": ["folderId1", "folderId2", ...],  // MRU, capped at 10, shared by move & jump
-  "folderWeights": { "folderId1": 12, "folderId2": 3 }, // usage counts, uncapped, never pruned
-  "queryWeights": {                                   // usage counts per typed query PREFIX
-    "arch": { "folderId1": 5 },
-    "archi": { "folderId1": 5 },
+  "folderWeights": { "folderId1": 12.4, "folderId2": 3 }, // time-weighted usage, never pruned
+  "queryWeights": {                                       // the same, per typed query PREFIX
+    "arch": { "folderId1": 5.2 },
+    "archi": { "folderId1": 5.2 },
     "b": { "folderId2": 2 }
   },
   "lastUsedFolderId": "folderId1",                    // used by the *-last commands
@@ -310,7 +310,9 @@ Two small, related additions, both implemented as pure functions in
   already-*matched* folder list, most-used first, falling back to
   case-insensitive alphabetical for ties (including folders with no
   weight yet, all effectively tied at zero).
-- **`lib/highlight.js`**: `findMatchRange()` finds where the query
+- **`lib/highlight.js`**: `findMatchRanges()` (originally a
+  single-range `findMatchRange()`, generalized for multi-word queries
+  in 1.3.0, see below) finds where the query
   appears in a folder's *displayed* label (not which internal field —
   name, path, or account name — caused the match; simpler and always
   correct regardless of that, since it just looks at what's on
@@ -397,6 +399,116 @@ do I pick most."
   sentence, deliberately without mentioning prefixes, fan-out, or any
   other implementation detail from this section.
 
+### Multi-word queries
+
+A query is split on whitespace (`queryWords()` in `lib/match.js`), and
+a folder matches only if **every** word matches it on its own, in any
+order, using the same per-word rules as a single-word query (name,
+then path, then account name). Each extra word therefore narrows the
+list. The motivating case: typing `f lei` to get "2026-10 DGfN
+Leipzig" but not "2026-12 DTG Leipzig". That's a *filtering*
+problem, not a ranking one: the second folder has no "f", so it drops
+out regardless of usage weights.
+
+- **Words may match path and account name, not just the name**, so
+  that narrowing by parent folder (`kongr lei`) or by account (`work
+  inbox`) works too. A single-word query already matched those fields,
+  so a multi-word query is just "every word would match on its own".
+- **But for several words, name matches rank first (`matchBand()`).**
+  A short word like `f` could easily match a parent folder's name
+  somewhere, letting the wrong, more-used folder back in and win on
+  weight. So for queries of two or more words, folders whose own
+  name contains every word form band 0 and everything else band 1;
+  `sortByQueryWeight()` takes that as an optional `bandOf` and sorts
+  by it *before* query weight, global weight and alphabetical order
+  (one more stable sort on top of the existing ones). This is a
+  deliberate, contained exception to "weight wins, full stop":
+  **single-word queries are always band 0**, so they rank exactly as
+  before, and existing habits (e.g. typing a parent folder's name to
+  reach a much-used child) keep working. A continuous "match score +
+  weight" blend was considered and rejected as unpredictable (one
+  more use could silently flip a folder past a clearly better text
+  match); see the fuzzy-search entry in ROADMAP.md.
+- **Query weights are keyed on the normalized typed text**, spaces
+  included (`normalizeQuery()` in `lib/weights.js` collapses runs of
+  whitespace, so `f  lei` and `f lei` are the same key). The prefix
+  fan-out skips prefixes ending in a space, since lookups trim the
+  query and would never read them.
+- **Highlighting marks every word** (`findMatchRanges()`): one range
+  per word, merged where they overlap or touch. Each word is marked
+  preferably inside the folder's own name (the caller passes where
+  the name starts in the label as `preferFrom`), falling back to its
+  first occurrence, so a word found in both a parent folder and the
+  name is shown where it most likely mattered.
+
+### Fading weights over time
+
+Plain counts have one real-world failure mode: a folder that was used
+heavily for a while (e.g. for one conference) keeps winning every
+query it matches long after it stopped being relevant, and a newer
+folder matching the same text needs as many picks to catch up. So
+weights fade: a use loses half its weight every 30 days
+(`HALF_LIFE_MS` in `lib/weights.js`).
+
+- **Implemented by growing the increment, not by decaying stored
+  values.** `usageIncrement(now)` = 2^((now − epoch) / half-life):
+  each new use is worth twice as much as one made a half-life earlier.
+  Weights are only ever *compared*, never shown, so this produces
+  exactly the same ordering as decaying every stored value — without
+  a timestamp per entry, without touching entries on read, and without
+  changing the storage schema's shape (still plain numbers). The
+  numbers grow exponentially but stay far within a double's range for
+  about 80 years at a 30-day half-life; if that ever matters, dividing
+  every stored weight by the same factor and moving the epoch forward
+  rebases them without changing any ordering.
+- **No migration needed.** The epoch (`WEIGHT_EPOCH_MS`) is
+  2026-08-01, the 1.1.0 release that started recording weights. A use
+  at the epoch is worth exactly 1, which is what every pre-fading +1
+  count already is — so existing weights are read as "all of this
+  happened on 2026-08-01" and fade from there. Relative order among
+  existing folders is unchanged; new picks simply count more.
+- `recordUsage()` in `background.js` computes the increment once per
+  selection from `Date.now()` and passes it to both
+  `incrementWeight()` and `incrementQueryWeight()`; the pure functions
+  take it as a parameter (default 1) so tests control time.
+- Fading alone can still take weeks to settle a lopsided case, which
+  is why the manual reset below exists too.
+
+### Demoting a folder (resetting its weights)
+
+Even with fading, a lopsided case (a folder used heavily for one
+conference versus a newer one for the next conference in the same
+city, both matching the same text) can take weeks to settle on its
+own. The search window therefore lets the user reset a folder's ranking
+from the results list: a small ⤓ button on the highlighted/hovered row,
+or Shift+Delete (the same key Firefox's address bar uses to remove a
+suggestion).
+
+- **It forgets everything for that folder** — the global weight and
+  its entry under every query prefix (`forgetFolderWeights()` in
+  `lib/weights.js`), not just the prefixes of what's currently typed.
+  Clearing only the current query's prefixes doesn't work: the tie
+  between two folders at query weight zero falls through to global
+  weight, where the folder being demoted would still win.
+- **It's a reset to zero, not a penalty.** A demoted folder ranks like
+  a never-used one, so if the competing folder has no history either,
+  the alphabetical tie-break decides; one pick of the right folder is
+  then enough to settle it. A negative or "sticky demoted" state was
+  considered and rejected as more stored state for little benefit.
+- **Only offered where it can change something**: on typed-search
+  results whose folder has a nonzero global weight (every selection
+  bumps the global weight, so zero there means no history at all).
+  The empty-query recent-folders view is recency-ordered, so neither
+  the button nor the shortcut appears there; `recentFolders` and
+  `lastUsedFolderId` are deliberately left alone.
+- Same write path as everything else: the popup sends
+  `{type: "demote", folderId}` to `background.js` (still the only
+  place that writes `storage.local`), and on success applies the same
+  pure function to its own in-memory copy and re-renders, so the new
+  order shows up without re-reading storage.
+- No confirmation step: the only thing lost is ranking history, which
+  rebuilds itself with use.
+
 ## Error logging convention
 
 The tab-resolution bug above was only findable at all because of
@@ -435,15 +547,15 @@ rounds of guessing specifically because the first version didn't.
   explanation can actually live.
 - `lib/` — pure, dependency-free logic shared by `background.js`,
   `popup/search.js`, and `options/options.js`:
-  - `match.js` — filter/rank folders against a query.
+  - `match.js` — filter/rank folders against a (multi-word) query.
   - `recent.js` — MRU list maintenance (push-to-front, dedupe, cap).
   - `folders.js` — restrict a folder list to one account.
   - `options.js` — merge stored options over defaults.
   - `imapUtf7.js` — decode IMAP "modified UTF-7" (RFC 3501) mailbox
     names into plain Unicode.
-  - `weights.js` — track and sort by per-folder usage counts, both
-    global and per-typed-query-prefix.
-  - `highlight.js` — find where a query matches in a displayed label.
+  - `weights.js` — track, sort by, and reset per-folder usage counts,
+    both global and per-typed-query-prefix.
+  - `highlight.js` — find where a query's words match in a displayed label.
 - `test/` — unit tests for everything in `lib/`, using Node's
   built-in `node:test` (see below).
 - `icons/` — `icon.svg` source plus generated PNGs (via `rsvg-convert`).

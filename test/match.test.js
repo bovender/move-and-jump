@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filterFolders } from "../lib/match.js";
+import { filterFolders, matchBand, queryWords } from "../lib/match.js";
 
 const folders = [
   { id: "1", name: "Inbox", path: "/Inbox", accountId: "a1" },
@@ -70,4 +70,76 @@ test("account name does not affect matches that already hit on name/path", () =>
     result.map((f) => f.id),
     ["1", "2"],
   );
+});
+
+const congresses = [
+  { id: "dgfn", name: "2026-10 DGfN Leipzig", path: "/Kongresse/2026-10 DGfN Leipzig" },
+  { id: "dtg", name: "2026-12 DTG Leipzig", path: "/Kongresse/2026-12 DTG Leipzig" },
+  { id: "dtg-f", name: "2026-12 DTG Leipzig", path: "/Fortbildung/2026-12 DTG Leipzig" },
+  { id: "inbox", name: "Inbox", path: "/Inbox", accountName: "Work" },
+];
+
+test("queryWords splits on any run of whitespace", () => {
+  assert.deepEqual(queryWords("  f   Lei "), ["f", "Lei"]);
+  assert.deepEqual(queryWords("   "), []);
+});
+
+test("every word of a multi-word query must match, in any order", () => {
+  assert.deepEqual(
+    filterFolders(congresses, "f Lei").map((f) => f.id),
+    ["dgfn", "dtg-f"],
+  );
+  assert.deepEqual(
+    filterFolders(congresses, "Lei f").map((f) => f.id),
+    ["dgfn", "dtg-f"],
+  );
+});
+
+test("words can match across name, path and account name", () => {
+  assert.deepEqual(
+    filterFolders(congresses, "work inbox").map((f) => f.id),
+    ["inbox"],
+  );
+  assert.deepEqual(
+    filterFolders(congresses, "kongr dtg").map((f) => f.id),
+    ["dtg"],
+  );
+});
+
+test("a multi-word query ranks by its worst-matching word", () => {
+  // "dtg" matches both names, but "fort" only one folder's path, so
+  // that folder ranks in the path tier.
+  assert.deepEqual(
+    filterFolders(congresses, "dtg").map((f) => f.id),
+    ["dtg", "dtg-f"],
+  );
+  assert.deepEqual(
+    filterFolders(congresses, "fort dtg").map((f) => f.id),
+    ["dtg-f"],
+  );
+  assert.deepEqual(
+    filterFolders(
+      [
+        { id: "path", name: "Leipzig", path: "/Fortbildung/Leipzig" },
+        { id: "name", name: "Leipzig Fortbildung", path: "/Leipzig Fortbildung" },
+      ],
+      "lei fort",
+    ).map((f) => f.id),
+    ["name", "path"],
+  );
+});
+
+test("matchBand puts folders whose name holds every word first", () => {
+  assert.equal(matchBand(congresses[0], "f lei"), 0);
+  assert.equal(matchBand(congresses[2], "f lei"), 1);
+});
+
+test("matchBand is always 0 for single-word queries", () => {
+  assert.equal(matchBand(congresses[1], "kongr"), 0);
+  assert.equal(matchBand(congresses[3], "work"), 0);
+});
+
+test("matchBand respects caseSensitive", () => {
+  assert.equal(matchBand(congresses[0], "f lei", { caseSensitive: true }), 1);
+  assert.equal(matchBand(congresses[0], "f Lei", { caseSensitive: true }), 0);
 });

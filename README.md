@@ -42,15 +42,30 @@ overall: a folder you've picked after typing similar text before
 comes first, then your most-used folders in general, then
 alphabetically — so the more consistently you type a certain pattern
 for a folder, the sooner it'll show up when you type that pattern
-again. The part of each result matching what you typed is highlighted.
+again. Recent use counts for more than older use (its weight halves
+about every month), so a folder you stop using gradually makes way
+for the ones you use now. The part of each result matching what you typed is highlighted.
 (The full ranking logic, and why it's designed this way, is written
 up in [ARCHITECTURE.md](ARCHITECTURE.md).)
+
+If a folder you used a lot keeps crowding out the one you need now
+(say, last month's project folder versus this month's, both matching
+what you type), you can reset its ranking: highlight it in the search
+results and click the small ⤓ icon at the right end of the row, or
+press <kbd>Shift</kbd><kbd>Delete</kbd>. This forgets how often you've
+used that folder, so it ranks like a folder you've never picked.
+Nothing else is affected; the folder and its emails stay as they are.
 
 ### Move an email to a folder
 
 Press <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>N</kbd> to open a search
 box. Begin typing the desired folder name or parts of it. A list of
-search results updates automatically as you type. Press
+search results updates automatically as you type. You can type
+several words separated by spaces, in any order, and each one narrows
+the list further — e.g. `f lei` finds "2026-10 DGfN Leipzig" but not
+"2026-12 DTG Leipzig". Words can also match a parent folder or the
+account name (`work inbox`), but folders whose own name contains all
+the words are listed first. Press
 <kbd>ENTER</kbd> to accept the selected folder and move the email.
 
 You may also just press <kbd>ENTER</kbd> without typing anything to
